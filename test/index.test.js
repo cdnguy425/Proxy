@@ -276,4 +276,198 @@ describe('simple-proxy-id', () => {
       expect(response.body.message).toBe('correct target');
     });
   });
+
+  describe('Path Rewrite', () => {
+    test('should rewrite path with object rules', async () => {
+      const targetPort = getPort();
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          message: 'success',
+          path: req.url
+        }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create Express app with proxy middleware with pathRewrite
+      const app = express();
+
+      app.use('/api', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: true,
+        pathRewrite: {
+          '^/api': ''  // Remove /api prefix
+        }
+      }));
+
+      // Test path rewrite
+      const response = await request(app)
+        .get('/api/users')
+        .expect(200);
+
+      expect(response.body.message).toBe('success');
+      // Express strips /api, then pathRewrite processes it
+      expect(response.body.path).toBe('/users');
+    });
+
+    test('should rewrite path with function', async () => {
+      const targetPort = getPort();
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          message: 'success',
+          path: req.url
+        }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create Express app with proxy middleware with pathRewrite function
+      const app = express();
+
+      app.use('/api', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: true,
+        pathRewrite: (path) => path.replace(/^\/old/, '/new')
+      }));
+
+      // Test path rewrite with function
+      const response = await request(app)
+        .get('/api/old/users')
+        .expect(200);
+
+      expect(response.body.message).toBe('success');
+      expect(response.body.path).toBe('/new/users');
+    });
+
+    test('should rewrite multiple path patterns', async () => {
+      const targetPort = getPort();
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          message: 'success',
+          path: req.url
+        }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create Express app with proxy middleware with multiple rewrite rules
+      const app = express();
+
+      app.use('/backend', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: true,
+        pathRewrite: {
+          '^/v1': '/api/v1',
+          '^/v2': '/api/v2'
+        }
+      }));
+
+      // Test first rewrite rule
+      const response1 = await request(app)
+        .get('/backend/v1/users')
+        .expect(200);
+
+      expect(response1.body.path).toBe('/api/v1/users');
+
+      // Test second rewrite rule
+      const response2 = await request(app)
+        .get('/backend/v2/posts')
+        .expect(200);
+
+      expect(response2.body.path).toBe('/api/v2/posts');
+    });
+
+    test('should work without pathRewrite (backwards compatibility)', async () => {
+      const targetPort = getPort();
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          message: 'success',
+          path: req.url
+        }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create Express app without pathRewrite
+      const app = express();
+
+      app.use('/api', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: true
+      }));
+
+      // Test without path rewrite
+      const response = await request(app)
+        .get('/api/users')
+        .expect(200);
+
+      expect(response.body.message).toBe('success');
+      expect(response.body.path).toBe('/users');
+    });
+
+    test('should use pathRewrite in standalone proxy', (done) => {
+      const targetPort = getPort();
+      const proxyPort = getPort();
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'success', path: req.url }));
+      });
+      servers.push(mockServer);
+
+      mockServer.listen(targetPort, () => {
+        // Create proxy server with pathRewrite
+        const proxyServer = createProxy({
+          target: `http://localhost:${targetPort}`,
+          port: proxyPort,
+          changeOrigin: true,
+          pathRewrite: {
+            '^/backend': '/api'
+          }
+        });
+        servers.push(proxyServer);
+
+        // Test proxy with pathRewrite
+        setTimeout(() => {
+          http.get(`http://localhost:${proxyPort}/backend/users`, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+              data += chunk;
+            });
+            res.on('end', () => {
+              const json = JSON.parse(data);
+              expect(json.message).toBe('success');
+              expect(json.path).toBe('/api/users');
+              done();
+            });
+          });
+        }, 500);
+      });
+    });
+  });
 });

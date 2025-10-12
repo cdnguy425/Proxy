@@ -17,6 +17,7 @@ Think of it as a **safe reverse proxy** that prevents open proxy abuse.
 - Standalone HTTP/HTTPS proxy server
 - Express middleware support
 - Fixed target (secure by default, cannot be changed from requests)
+- **Path rewriting** support (object rules or function)
 - Optional `changeOrigin` to set Host header
 - Automatic error handling
 - **Logger plugin** with daily rotating logs
@@ -70,6 +71,51 @@ app.use('/api', createProxyMiddleware({
 app.listen(3000);
 
 // Access: http://localhost:3000/api/posts
+```
+
+### With Path Rewrite
+
+```js
+const { createProxy } = require('simple-proxy-id');
+
+// Using object rules (regex patterns)
+const server = createProxy({
+  target: 'https://api.example.com',
+  changeOrigin: true,
+  port: 3000,
+  pathRewrite: {
+    '^/backend': '/api',        // /backend/users → /api/users
+    '^/old-api': '/new-api',    // /old-api/posts → /new-api/posts
+    '^/v1': '/api/v1'           // /v1/data → /api/v1/data
+  }
+});
+
+// Or using a function for custom logic
+const server2 = createProxy({
+  target: 'https://api.example.com',
+  changeOrigin: true,
+  port: 3001,
+  pathRewrite: (path) => {
+    // Custom path transformation logic
+    return path.replace(/^\/legacy/, '/modern');
+  }
+});
+
+// With Express middleware
+const express = require('express');
+const { createProxyMiddleware } = require('simple-proxy-id');
+
+const app = express();
+
+app.use('/api', createProxyMiddleware({
+  target: 'https://jsonplaceholder.typicode.com',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api': ''  // Strip /api prefix
+  }
+}));
+
+app.listen(3000);
 ```
 
 ### With Logger Plugin
@@ -215,6 +261,9 @@ Create a standalone HTTP/HTTPS proxy server.
 - `target` (string, required): Target URL to proxy
 - `changeOrigin` (boolean, optional): Set Host header to target (default: false)
 - `port` (number, optional): Port for proxy server (default: 3000)
+- `pathRewrite` (object|function, optional): Path rewrite rules
+  - **Object**: Key-value pairs where keys are regex patterns and values are replacements
+  - **Function**: Custom function that takes path and returns rewritten path
 - `logger` (object, optional): Logger configuration
   - `logDir` (string): Directory to store log files (default: './logs')
   - `maxDays` (number): Maximum days to keep logs (default: 7)
@@ -233,6 +282,10 @@ const server = createProxy({
   target: 'https://api.example.com',
   changeOrigin: true,
   port: 8080,
+  pathRewrite: {
+    '^/backend': '/api',
+    '^/v1': '/api/v1'
+  },
   logger: {
     logDir: './logs',
     maxDays: 14
@@ -263,14 +316,34 @@ Create Express middleware for proxy.
 **Parameters:**
 - `target` (string, required): Target URL to proxy
 - `changeOrigin` (boolean, optional): Set Host header to target (default: false)
+- `pathRewrite` (object|function, optional): Path rewrite rules
+  - **Object**: Key-value pairs where keys are regex patterns and values are replacements
+  - **Function**: Custom function that takes path and returns rewritten path
 
 **Returns:** Express middleware function
 
 **Example:**
 ```js
+// Basic usage
 app.use('/api', createProxyMiddleware({
   target: 'https://api.github.com',
   changeOrigin: true
+}));
+
+// With path rewrite
+app.use('/api', createProxyMiddleware({
+  target: 'https://api.example.com',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api': '/v2/api'  // Rewrite /api/* to /v2/api/*
+  }
+}));
+
+// With function
+app.use('/backend', createProxyMiddleware({
+  target: 'https://api.example.com',
+  changeOrigin: true,
+  pathRewrite: (path) => path.replace(/^\/old/, '/new')
 }));
 ```
 
@@ -386,18 +459,6 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 - Submit pull requests
 - Improve documentation
 - Develop plugins
-
----
-
-## 🗺️ Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for planned features and future development.
-
-**Upcoming:**
-- **v1.2.0** - Circuit breaker, Health check, Response caching, Request size limiting, Retry logic
-- **v1.3.0** - IP whitelist/blacklist, Rate limiting, CORS plugin, SSL/TLS termination
-- **v1.4.0** - Compression, HTTP/2 support, Clustering
-- **v1.5.0** - Load balancing, WebSocket support, Request/Response transformation
 
 ---
 

@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-10-12
+
+### Added
+- **Path Rewrite Feature**: New capability to rewrite request paths before forwarding to target
+  - Support for object rules with regex patterns (e.g., `{'^/backend': '/api'}`)
+  - Support for custom function for advanced path transformation
+  - Works with both `createProxy()` and `createProxyMiddleware()`
+  - Zero dependencies - uses native JavaScript RegExp
+  - Fully tested with 5 new test cases covering various scenarios
+- Example files demonstrating path rewrite usage:
+  - `example/standalone-with-pathrewrite.js`
+  - `example/express-with-pathrewrite.js`
+- NPM scripts for running path rewrite examples:
+  - `npm run example:standalone-pathrewrite`
+  - `npm run example:express-pathrewrite`
+- TypeScript definitions for path rewrite feature:
+  - `PathRewriteRules` type for object-based rules
+  - `PathRewriteFunction` type for function-based rewrite
+  - Updated `ProxyOptions` and `ProxyMiddlewareOptions` interfaces
+- Comprehensive documentation in README:
+  - New "With Path Rewrite" usage section
+  - Updated API documentation with path rewrite parameters
+  - Multiple examples showing different use cases
+
+### Changed
+- Updated README feature list to include path rewriting
+- Enhanced API documentation with path rewrite examples
+- Improved TypeScript examples with path rewrite usage
+
+### Removed
+- Removed `ROADMAP.md` file (features will be tracked via GitHub issues)
+- Removed roadmap section from README
+
 ## [1.1.1] - 2025-10-12
 
 ### Added

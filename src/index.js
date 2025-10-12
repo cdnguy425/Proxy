@@ -70,19 +70,52 @@ const ERROR_PROXY = JSON.stringify({
 });
 
 /**
+ * Apply path rewrite rules to the request path
+ * @param {string} path - Original path
+ * @param {Object|Function} pathRewrite - Path rewrite rules or function
+ * @returns {string} Rewritten path
+ */
+function applyPathRewrite(path, pathRewrite) {
+  if (!pathRewrite) {
+    return path;
+  }
+
+  // If pathRewrite is a function, use it directly
+  if (typeof pathRewrite === 'function') {
+    return pathRewrite(path);
+  }
+
+  // If pathRewrite is an object, apply regex rules
+  if (typeof pathRewrite === 'object') {
+    for (const [pattern, replacement] of Object.entries(pathRewrite)) {
+      const regex = new RegExp(pattern);
+      if (regex.test(path)) {
+        return path.replace(regex, replacement);
+      }
+    }
+  }
+
+  return path;
+}
+
+/**
  * Helper: Forward request to target without dependencies (optimized)
  * @param {Object} clientReq - Client request
  * @param {Object} clientRes - Client response
  * @param {Object} targetParsed - Pre-parsed target URL
  * @param {boolean} changeOrigin - Whether to change origin header
  * @param {Object} agent - HTTP/HTTPS agent for connection pooling
+ * @param {Object|Function} pathRewrite - Path rewrite rules or function
  */
-function forwardRequest(clientReq, clientRes, targetParsed, changeOrigin, agent) {
+function forwardRequest(clientReq, clientRes, targetParsed, changeOrigin, agent, pathRewrite) {
+  // Apply path rewrite if configured
+  const rewrittenPath = applyPathRewrite(clientReq.url, pathRewrite);
+
   // Prepare options for target request
   const options = {
     hostname: targetParsed.hostname,
     port: targetParsed.port,
-    path: clientReq.url,
+    path: rewrittenPath,
     method: clientReq.method,
     headers: filterHeaders(clientReq.headers),
     agent: agent
@@ -142,6 +175,7 @@ function forwardRequest(clientReq, clientRes, targetParsed, changeOrigin, agent)
  * @param {string} options.target - Target URL to proxy (required, fixed)
  * @param {boolean} options.changeOrigin - Set Host header to target (default: false)
  * @param {number} options.port - Port for proxy server (default: 3000)
+ * @param {Object|Function} options.pathRewrite - Path rewrite rules or function (optional)
  * @param {Object} options.logger - Logger configuration (optional)
  * @param {string} options.logger.logDir - Directory to store log files (default: './logs')
  * @param {number} options.logger.maxDays - Maximum days to keep logs (default: 7)
@@ -162,6 +196,7 @@ function createProxy(options = {}) {
     target,
     changeOrigin = false,
     port = 3000,
+    pathRewrite,
     logger: loggerOptions,
     attackDetector: attackDetectorOptions
   } = options;
@@ -219,7 +254,7 @@ function createProxy(options = {}) {
       }
 
       // Finally, forward request with cached target and agent
-      forwardRequest(req, res, targetParsed, changeOrigin, agent);
+      forwardRequest(req, res, targetParsed, changeOrigin, agent, pathRewrite);
     };
 
     next();
@@ -229,6 +264,9 @@ function createProxy(options = {}) {
   server.listen(port, () => {
     console.log(`Proxy server running on port ${port}`);
     console.log(`Forwarding requests to: ${target}`);
+    if (pathRewrite) {
+      console.log(`Path rewrite enabled`);
+    }
     if (loggerOptions) {
       console.log(`Logger enabled: ${loggerOptions.logDir || './logs'}`);
     }
@@ -246,6 +284,7 @@ function createProxy(options = {}) {
  * @param {Object} options - Proxy configuration
  * @param {string} options.target - Target URL to proxy (required, fixed)
  * @param {boolean} options.changeOrigin - Set Host header to target (default: false)
+ * @param {Object|Function} options.pathRewrite - Path rewrite rules or function (optional)
  * @returns {Function} Express middleware function
  */
 function createProxyMiddleware(options = {}) {
@@ -255,7 +294,8 @@ function createProxyMiddleware(options = {}) {
 
   const {
     target,
-    changeOrigin = false
+    changeOrigin = false,
+    pathRewrite
   } = options;
 
   // Parse and cache target URL (performance optimization)
@@ -291,7 +331,7 @@ function createProxyMiddleware(options = {}) {
     };
 
     try {
-      forwardRequest(req, res, targetParsed, changeOrigin, agent);
+      forwardRequest(req, res, targetParsed, changeOrigin, agent, pathRewrite);
 
       // Intercept error from forwardRequest
       res.on('error', errorHandler);
