@@ -1,6 +1,6 @@
 {
   "name": "simple-proxy-id",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A secure HTTP/HTTPS proxy library for Node.js with zero dependencies - target proxy can only be set by developers in code",
   "main": "src/index.js",
   "types": "index.d.ts",

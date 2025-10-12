@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-10-12
+
+### Added
+- `.npmignore` file to exclude unnecessary files from npm package
+  - Excludes development files (.git, .github, .vscode, etc.)
+  - Excludes test files and benchmark directory
+  - Excludes example files
+  - Excludes development documentation (CONTRIBUTING.md, ROADMAP.md)
+  - Reduces package size for faster installation
+
 ## [1.1.0] - 2025-10-03
 
 ### Added

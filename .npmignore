@@ -1,0 +1,54 @@
+# Development files
+.git
+.github
+.gitignore
+.npmignore
+
+# Test files
+test/
+jest.config.js
+*.test.js
+
+# Documentation (development)
+CONTRIBUTING.md
+ROADMAP.md
+
+# Examples
+example/
+
+# Benchmark
+benchmark/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Development dependencies
+node_modules/
+
+# Build artifacts
+*.tgz
+
+# Editor directories and files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD
+.travis.yml
+.circleci/
+.gitlab-ci.yml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Package lock (users will generate their own)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
