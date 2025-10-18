@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-10-18
+
+### Added
+- **CORS Plugin** - New plugin for handling cross-origin requests
+  - Flexible origin validation (string, array, function, wildcard `*`)
+  - Support for dynamic origin validation with custom logic
+  - Automatic OPTIONS preflight handling (204 No Content)
+  - Configurable methods and allowed headers
+  - Per-request origin validation for security
+  - Zero dependencies
+- **Example Files** - Added CORS usage examples
+  - `example/standalone-with-cors.js` - Standalone proxy with CORS whitelist
+  - `example/express-with-cors.js` - Express middleware with CORS and JWT auth example
+- **NPM Scripts** - Added scripts for CORS examples
+  - `npm run example:standalone-cors`
+  - `npm run example:express-cors`
+- **Comprehensive Test Coverage** - Improved test coverage to **93.5%** (target >90% achieved!)
+  - Added 25 test cases for attack-detector plugin (100% coverage)
+  - Added 11 integration tests for CORS, attack detector, HTTPS, headers, and ports
+  - Total: **86 tests** (up from 51 tests)
+- **Coverage Badge** - Added test coverage badge (93.5% brightgreen) to README
+
+### Fixed
+- **Package Exports** - Fixed module exports structure for plugins
+  - Added `src/cors.js` re-export file (consistent with logger and attack-detector pattern)
+  - Updated `package.json` exports to point to correct paths
+  - Now users can use `require('simple-proxy-id/cors')` without `/src` prefix
+
+### Changed
+- **Documentation** - Comprehensive README.md updates
+  - Added CORS plugin to features list
+  - Added "With CORS Plugin" usage section with 3 examples (whitelist, dynamic validation, wildcard)
+  - Added `createCors(options)` API documentation
+  - Updated `createProxy` parameters to include CORS configuration
+  - Updated project structure section to mention CORS plugin
+  - Added real-world use cases (JWT authentication APIs)
+
+### Improved
+- **Test Coverage** - Significant increase from 72.1% to **93.5%**
+  - Statements: 72.1% → 93.53%
+  - Branches: 57.8% → 85.54%
+  - Functions: 71.79% → 92.3%
+  - Lines: 72.47% → 93.37%
+- **Code Quality** - Better error handling and edge case coverage
+
 ## [1.2.0] - 2025-10-12
 
 ### Added

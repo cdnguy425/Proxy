@@ -1,9 +1,15 @@
 {
   "name": "simple-proxy-id",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A secure HTTP/HTTPS proxy library for Node.js with zero dependencies - target proxy can only be set by developers in code",
   "main": "src/index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": "./src/index.js",
+    "./logger": "./src/logger.js",
+    "./attack-detector": "./src/attack-detector.js",
+    "./cors": "./src/cors.js"
+  },
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
@@ -12,10 +18,12 @@
     "example:standalone-logger": "node example/standalone-with-logger.js",
     "example:standalone-attack-detector": "node example/standalone-with-attack-detector.js",
     "example:standalone-pathrewrite": "node example/standalone-with-pathrewrite.js",
+    "example:standalone-cors": "node example/standalone-with-cors.js",
     "example:express": "node example/express.js",
     "example:express-logger": "node example/express-with-logger.js",
     "example:express-attack-detector": "node example/express-with-attack-detector.js",
     "example:express-pathrewrite": "node example/express-with-pathrewrite.js",
+    "example:express-cors": "node example/express-with-cors.js",
     "example:attack-detector": "node example/attack-detector-example.js"
   },
   "keywords": [

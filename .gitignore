@@ -34,3 +34,7 @@ Thumbs.db
 # Build
 dist/
 build/
+
+# Development files (not for git)
+test-express-behavior.js
+TODO.md

@@ -176,6 +176,10 @@ function forwardRequest(clientReq, clientRes, targetParsed, changeOrigin, agent,
  * @param {boolean} options.changeOrigin - Set Host header to target (default: false)
  * @param {number} options.port - Port for proxy server (default: 3000)
  * @param {Object|Function} options.pathRewrite - Path rewrite rules or function (optional)
+ * @param {Object} options.cors - CORS configuration (optional)
+ * @param {string|string[]|Function} options.cors.origin - Allowed origin(s)
+ * @param {string[]} options.cors.methods - Allowed HTTP methods
+ * @param {string[]} options.cors.allowedHeaders - Allowed request headers
  * @param {Object} options.logger - Logger configuration (optional)
  * @param {string} options.logger.logDir - Directory to store log files (default: './logs')
  * @param {number} options.logger.maxDays - Maximum days to keep logs (default: 7)
@@ -197,6 +201,7 @@ function createProxy(options = {}) {
     changeOrigin = false,
     port = 3000,
     pathRewrite,
+    cors: corsOptions,
     logger: loggerOptions,
     attackDetector: attackDetectorOptions
   } = options;
@@ -219,6 +224,13 @@ function createProxy(options = {}) {
   // Select appropriate agent based on protocol (performance optimization)
   const agent = targetParsed.isHttps ? httpsAgent : httpAgent;
 
+  // Setup CORS if enabled
+  let corsMiddleware = null;
+  if (corsOptions) {
+    const createCors = require('./plugins/cors');
+    corsMiddleware = createCors(corsOptions);
+  }
+
   // Setup logger if enabled
   let loggerMiddleware = null;
   if (loggerOptions) {
@@ -236,18 +248,28 @@ function createProxy(options = {}) {
 
   // Create HTTP server
   const server = http.createServer((req, res) => {
-    // Chain middlewares: logger -> attack detectors -> proxy
+    // Chain middlewares: cors -> logger -> attack detectors -> proxy
     let index = 0;
 
     const next = () => {
-      // Apply logger first
-      if (index === 0 && loggerMiddleware) {
+      // Apply CORS first
+      if (index === 0 && corsMiddleware) {
+        index++;
+        return corsMiddleware(req, res, next);
+      }
+
+      // Apply logger
+      const loggerIndex = corsMiddleware ? index - 1 : index;
+      if (loggerIndex === 0 && loggerMiddleware) {
         index++;
         return loggerMiddleware(req, res, next);
       }
 
       // Apply attack detectors
-      const detectorIndex = loggerMiddleware ? index - 1 : index;
+      let detectorIndex = index;
+      if (corsMiddleware) detectorIndex--;
+      if (loggerMiddleware) detectorIndex--;
+
       if (detectorIndex < attackDetectorMiddlewares.length) {
         index++;
         return attackDetectorMiddlewares[detectorIndex](req, res, next);
@@ -264,6 +286,13 @@ function createProxy(options = {}) {
   server.listen(port, () => {
     console.log(`Proxy server running on port ${port}`);
     console.log(`Forwarding requests to: ${target}`);
+    if (corsOptions) {
+      const originInfo = corsOptions.origin === '*' ? 'all origins' :
+                        Array.isArray(corsOptions.origin) ? `${corsOptions.origin.length} origin(s)` :
+                        typeof corsOptions.origin === 'function' ? 'dynamic validation' :
+                        corsOptions.origin;
+      console.log(`CORS enabled: ${originInfo}`);
+    }
     if (pathRewrite) {
       console.log(`Path rewrite enabled`);
     }

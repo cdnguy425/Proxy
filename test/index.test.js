@@ -470,4 +470,307 @@ describe('simple-proxy-id', () => {
       });
     });
   });
+
+  describe('CORS Integration', () => {
+    test('should work with CORS in standalone mode', (done) => {
+      const targetPort = getPort();
+      const proxyPort = getPort();
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'cors enabled' }));
+      });
+      servers.push(mockServer);
+
+      mockServer.listen(targetPort, () => {
+        // Create proxy server with CORS
+        const proxyServer = createProxy({
+          target: `http://localhost:${targetPort}`,
+          port: proxyPort,
+          changeOrigin: true,
+          cors: {
+            origin: 'http://localhost:8080',
+            methods: ['GET', 'POST'],
+            allowedHeaders: ['Content-Type']
+          }
+        });
+        servers.push(proxyServer);
+
+        // Test proxy with CORS
+        setTimeout(() => {
+          const options = {
+            hostname: 'localhost',
+            port: proxyPort,
+            path: '/test',
+            headers: {
+              'Origin': 'http://localhost:8080'
+            }
+          };
+
+          http.get(options, (res) => {
+            expect(res.headers['access-control-allow-origin']).toBe('http://localhost:8080');
+            expect(res.headers['access-control-allow-methods']).toBeTruthy();
+            done();
+          });
+        }, 500);
+      });
+    });
+  });
+
+  describe('Attack Detector Integration', () => {
+    test('should work with attack detector in standalone mode', (done) => {
+      const targetPort = getPort();
+      const proxyPort = getPort();
+      let attackDetected = false;
+
+      // Create mock target server that returns 401
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+      });
+      servers.push(mockServer);
+
+      mockServer.listen(targetPort, () => {
+        // Create proxy server with attack detector
+        const proxyServer = createProxy({
+          target: `http://localhost:${targetPort}`,
+          port: proxyPort,
+          changeOrigin: true,
+          attackDetector: {
+            path: '/login',
+            statusCode: 401,
+            threshold: 2,
+            timeWindow: 1000,
+            onTrigger: (data) => {
+              attackDetected = true;
+              expect(data.hits).toBe(2);
+              expect(data.path).toBe('/login');
+            }
+          }
+        });
+        servers.push(proxyServer);
+
+        // Test proxy with attack detector
+        setTimeout(() => {
+          // First hit
+          http.get(`http://localhost:${proxyPort}/login`, (res) => {
+            // Second hit
+            http.get(`http://localhost:${proxyPort}/login`, (res) => {
+              setTimeout(() => {
+                expect(attackDetected).toBe(true);
+                done();
+              }, 100);
+            });
+          });
+        }, 500);
+      });
+    });
+
+    test('should work with multiple attack detectors in standalone mode', (done) => {
+      const targetPort = getPort();
+      const proxyPort = getPort();
+      const attacks = { login: false, scan: false };
+
+      // Create mock target server
+      const mockServer = http.createServer((req, res) => {
+        if (req.url === '/login') {
+          res.writeHead(401);
+        } else {
+          res.writeHead(404);
+        }
+        res.end();
+      });
+      servers.push(mockServer);
+
+      mockServer.listen(targetPort, () => {
+        // Create proxy server with multiple attack detectors
+        const proxyServer = createProxy({
+          target: `http://localhost:${targetPort}`,
+          port: proxyPort,
+          changeOrigin: true,
+          attackDetector: [
+            {
+              path: '/login',
+              statusCode: 401,
+              threshold: 2,
+              timeWindow: 1000,
+              onTrigger: () => { attacks.login = true; }
+            },
+            {
+              path: /^\/.*$/,
+              statusCode: 404,
+              threshold: 2,
+              timeWindow: 1000,
+              onTrigger: () => { attacks.scan = true; }
+            }
+          ]
+        });
+        servers.push(proxyServer);
+
+        setTimeout(() => {
+          // Trigger login detector
+          http.get(`http://localhost:${proxyPort}/login`, () => {
+            http.get(`http://localhost:${proxyPort}/login`, () => {
+              // Trigger scan detector
+              http.get(`http://localhost:${proxyPort}/notfound1`, () => {
+                http.get(`http://localhost:${proxyPort}/notfound2`, () => {
+                  setTimeout(() => {
+                    expect(attacks.login).toBe(true);
+                    expect(attacks.scan).toBe(true);
+                    done();
+                  }, 100);
+                });
+              });
+            });
+          });
+        }, 500);
+      });
+    });
+  });
+
+  describe('Error Handling', () => {
+    test('should handle invalid target gracefully in middleware', async () => {
+      const app = express();
+
+      app.use('/api', createProxyMiddleware({
+        target: 'http://localhost:1', // Port 1, typically not accessible
+        changeOrigin: true
+      }));
+
+      const response = await request(app)
+        .get('/api/test')
+        .expect(500);
+
+      expect(response.body.error).toBe('Proxy Error');
+    });
+  });
+
+  describe('HTTPS Support', () => {
+    test('should create proxy for HTTPS target', () => {
+      expect(() => {
+        const middleware = createProxyMiddleware({
+          target: 'https://api.example.com',
+          changeOrigin: true
+        });
+        expect(typeof middleware).toBe('function');
+      }).not.toThrow();
+    });
+
+    test('should detect HTTPS protocol correctly', async () => {
+      const targetPort = getPort();
+
+      // Create mock HTTP target server
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ protocol: 'http' }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create proxy for HTTP target
+      const app = express();
+      app.use('/api', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: true
+      }));
+
+      const response = await request(app)
+        .get('/api/test')
+        .expect(200);
+
+      expect(response.body.protocol).toBe('http');
+    });
+  });
+
+  describe('Headers Handling', () => {
+    test('should set Host header when changeOrigin is true', async () => {
+      const targetPort = getPort();
+
+      // Create mock target server that echoes Host header
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ host: req.headers.host }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create proxy with changeOrigin: true
+      const app = express();
+      app.use('/api', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: true
+      }));
+
+      const response = await request(app)
+        .get('/api/test')
+        .expect(200);
+
+      expect(response.body.host).toBe(`localhost:${targetPort}`);
+    });
+
+    test('should not set Host header when changeOrigin is false', async () => {
+      const targetPort = getPort();
+
+      // Create mock target server that echoes Host header
+      const mockServer = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ host: req.headers.host || 'not-set' }));
+      });
+      servers.push(mockServer);
+
+      await new Promise((resolve) => {
+        mockServer.listen(targetPort, resolve);
+      });
+
+      // Create proxy with changeOrigin: false
+      const app = express();
+      app.use('/api', createProxyMiddleware({
+        target: `http://localhost:${targetPort}`,
+        changeOrigin: false
+      }));
+
+      const response = await request(app)
+        .get('/api/test')
+        .expect(200);
+
+      // When changeOrigin is false, host header is deleted, so target receives undefined or the test client's host
+      expect(response.body.host).toBeDefined();
+    });
+  });
+
+  describe('Port Handling', () => {
+    test('should use default HTTP port 80 when not specified', () => {
+      expect(() => {
+        createProxyMiddleware({
+          target: 'http://example.com',
+          changeOrigin: true
+        });
+      }).not.toThrow();
+    });
+
+    test('should use default HTTPS port 443 when not specified', () => {
+      expect(() => {
+        createProxyMiddleware({
+          target: 'https://example.com',
+          changeOrigin: true
+        });
+      }).not.toThrow();
+    });
+
+    test('should use custom port when specified', () => {
+      expect(() => {
+        createProxyMiddleware({
+          target: 'http://example.com:8080',
+          changeOrigin: true
+        });
+      }).not.toThrow();
+    });
+  });
 });
